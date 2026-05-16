@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MultiStream</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #0a0a0a;
+  color: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#wrapper {
+  display: flex;
+  height: 100vh;
+  width: 100%;
+}
+
+#streams {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.stream-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.stream {
+  border: none;
+  display: block;
+  background: #000;
+}
+
+.platform-badge {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  pointer-events: none;
+}
+
+.platform-badge.youtube { background: #ff0000; }
+.platform-badge.twitch  { background: #9147ff; }
+.platform-badge.kick    { background: #53fc18; }
+
+/* Help box */
+#helpbox {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #161616;
+  border: 1px solid #2a2a2a;
+  border-radius: 12px;
+  padding: 40px 44px;
+  max-width: 540px;
+  width: 90%;
+  display: none;
+  z-index: 100;
+  text-align: center;
+}
+
+#helpbox h1 {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  margin-bottom: 10px;
+}
+
+#helpbox h1 .yt  { color: #ff0000; }
+#helpbox h1 .tw  { color: #9147ff; }
+#helpbox h1 .kick { color: #53fc18; }
+
+#helpbox p {
+  color: #888;
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+.platform-pills {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.platform-pill {
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid;
+}
+
+.platform-pill.yt   { color: #ff0000; border-color: #ff000066; background: #ff000011; }
+.platform-pill.tw   { color: #9147ff; border-color: #9147ff66; background: #9147ff11; }
+.platform-pill.kick { color: #53fc18; border-color: #53fc1866; background: #53fc1811; }
+
+#helpbox .note {
+  font-size: 12px;
+  color: #444;
+  margin-top: 16px;
+}
+
+/* Bottom bar */
+#bottom_bar {
+  position: fixed;
+  bottom: 12px;
+  right: 12px;
+  background: rgba(10,10,10,0.88);
+  border: 1px solid #222;
+  border-radius: 7px;
+  padding: 7px 14px;
+  font-size: 13px;
+  z-index: 50;
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+#bottom_bar a {
+  color: #888;
+  cursor: pointer;
+  text-decoration: none;
+  padding: 2px 7px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+
+#bottom_bar a:hover { color: #fff; background: rgba(255,255,255,0.07); }
+#bottom_bar .sep { color: #2a2a2a; padding: 0 2px; user-select: none; }
+
+#sponsor_btn { color: #ff6b8a !important; }
+#sponsor_btn:hover { background: rgba(255,107,138,0.1) !important; }
+
+/* Overlay */
+#overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: none;
+  z-index: 150;
+}
+#overlay.visible { display: block; }
+
+/* Manage dialog */
+#change_streams {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #161616;
+  border: 1px solid #2a2a2a;
+  border-radius: 12px;
+  padding: 26px 30px;
+  width: 500px;
+  max-width: 95vw;
+  display: none;
+  z-index: 200;
+}
+
+#change_streams h2 {
+  font-size: 17px;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+
+#streamlist {
+  max-height: 340px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+  padding-right: 2px;
+}
+
+#streamlist::-webkit-scrollbar { width: 4px; }
+#streamlist::-webkit-scrollbar-track { background: transparent; }
+#streamlist::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+.streamlist-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.streamlist-item input[type="checkbox"] {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.item-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.item-dot.youtube { background: #ff0000; }
+.item-dot.twitch  { background: #9147ff; }
+.item-dot.kick    { background: #53fc18; }
+
+.item-label {
+  flex: 1;
+  font-size: 13px;
+  color: #ccc;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* New stream input row */
+.new-stream-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.platform-toggle {
+  display: flex;
+  border: 1px solid #2a2a2a;
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.platform-toggle button {
+  background: transparent;
+  border: none;
+  color: #666;
+  padding: 7px 11px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.platform-toggle button + button {
+  border-left: 1px solid #2a2a2a;
+}
+
+.platform-toggle button.active.yt   { background: #ff000022; color: #ff0000; }
+.platform-toggle button.active.tw   { background: #9147ff22; color: #9147ff; }
+.platform-toggle button.active.kick { background: #53fc1822; color: #53fc18; }
+
+.stream-input {
+  flex: 1;
+  background: #0f0f0f;
+  border: 1px solid #2a2a2a;
+  border-radius: 6px;
+  color: #fff;
+  padding: 8px 12px;
+  font-size: 13px;
+  transition: border-color 0.15s;
+  min-width: 0;
+}
+
+.stream-input:focus { outline: none; border-color: #444; }
+.stream-input::placeholder { color: #3a3a3a; }
+
+.dialog-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 4px;
+}
+
+.btn {
+  padding: 8px 18px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.15s;
+}
+
+.btn-ghost { background: transparent; border: 1px solid #2a2a2a; color: #888; }
+.btn-ghost:hover { background: #1e1e1e; color: #fff; }
+.btn-primary { background: #fff; color: #000; }
+.btn-primary:hover { background: #ddd; }
+.btn-add { background: transparent; border: 1px solid #2a2a2a; color: #777; padding: 8px 14px; }
+.btn-add:hover { border-color: #444; color: #ccc; }
+
+/* Toast */
+#toast {
+  position: fixed;
+  bottom: 52px;
+  right: 14px;
+  background: #1e1e1e;
+  border: 1px solid #2a2a2a;
+  border-radius: 7px;
+  padding: 9px 16px;
+  font-size: 13px;
+  color: #ccc;
+  z-index: 300;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  white-space: nowrap;
+}
+#toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div id="wrapper">
+  <div id="streams"></div>
+</div>
+
+<div id="helpbox">
+  <h1><span class="yt">Multi</span><span class="tw">Stream</span></h1>
+  <p>Watch YouTube, Twitch, and Kick streams side by side.<br>The layout auto-optimises to fill your screen.</p>
+  <div class="platform-pills">
+    <span class="platform-pill yt">YouTube</span>
+    <span class="platform-pill tw">Twitch</span>
+    <span class="platform-pill kick">Kick</span>
+  </div>
+  <button class="btn btn-primary" style="padding:10px 30px;font-size:14px;" onclick="openManage()">Add Streams</button>
+  <p class="note">Bookmark the URL to restore your layout. Paste any stream URL anywhere on the page to add it instantly.</p>
+</div>
+
+<div id="overlay" onclick="closeManage(false)"></div>
+
+<div id="change_streams">
+  <h2>Manage Streams</h2>
+  <div id="streamlist"></div>
+  <div id="new-rows"></div>
+  <div class="dialog-footer">
+    <button class="btn btn-add" onclick="addInputRow()">+ Add another</button>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost" onclick="closeManage(false)">Cancel</button>
+      <button class="btn btn-primary" onclick="closeManage(true)">Apply</button>
+    </div>
+  </div>
+</div>
+
+<div id="bottom_bar">
+  <a onclick="openManage()">Manage Streams</a>
+  <span class="sep">|</span>
+  <a onclick="copyLink()" id="copy_link_btn">Copy Link</a>
+  <span class="sep">|</span>
+  <a href="https://github.com/sponsors/jwsoat" target="_blank" rel="noopener" id="sponsor_btn">&#9829; Sponsor</a>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let streams = []; // [{ platform: 'youtube'|'twitch'|'kick', id: string }]
+
+const PLATFORMS = {
+  youtube: { label: 'YT',   color: '#ff0000' },
+  twitch:  { label: 'TW',   color: '#9147ff' },
+  kick:    { label: 'Kick', color: '#53fc18' },
+};
+
+// ── Embed URLs ────────────────────────────────────────────────────────────────
+function embedUrl(stream) {
+  const domain = location.hostname || 'localhost';
+  switch (stream.platform) {
+    case 'youtube':
+      return `https://www.youtube-nocookie.com/embed/${stream.id}?rel=0&modestbranding=1`;
+    case 'twitch':
+      return `https://player.twitch.tv/?channel=${stream.id}&parent=${domain}&muted=false`;
+    case 'kick':
+      return `https://player.kick.com/${stream.id}`;
+  }
+}
+
+// ── Auto-detect platform from URL ─────────────────────────────────────────────
+function detectFromUrl(raw) {
+  const input = (raw || '').trim();
+  if (!input) return null;
+  try {
+    const url = new URL(input.includes('://') ? input : 'https://' + input);
+    const host = url.hostname.replace(/^www\./, '');
+
+    // YouTube
+    if (host === 'youtu.be')
+      return { platform: 'youtube', id: url.pathname.slice(1).split('?')[0] };
+    if (host === 'youtube.com' || host === 'youtube-nocookie.com') {
+      if (url.searchParams.has('v')) return { platform: 'youtube', id: url.searchParams.get('v') };
+      const parts = url.pathname.split('/').filter(Boolean);
+      if (['live','shorts','embed','v'].includes(parts[0]) && parts[1])
+        return { platform: 'youtube', id: parts[1].split('?')[0] };
+    }
+
+    // Twitch
+    if (host === 'twitch.tv') {
+      const parts = url.pathname.split('/').filter(Boolean);
+      if (parts[0] && parts[0] !== 'directory') return { platform: 'twitch', id: parts[0] };
+    }
+
+    // Kick
+    if (host === 'kick.com') {
+      const parts = url.pathname.split('/').filter(Boolean);
+      if (parts[0] && !['categories','search'].includes(parts[0]))
+        return { platform: 'kick', id: parts[0] };
+    }
+  } catch (_) {}
+  return null;
+}
+
+function parseForPlatform(platform, raw) {
+  const input = (raw || '').trim();
+  if (!input) return null;
+  // Try URL detection first
+  const detected = detectFromUrl(input);
+  if (detected) return detected;
+  // Bare ID/channel name
+  if (platform === 'youtube' && /^[a-zA-Z0-9_-]{11}$/.test(input))
+    return { platform: 'youtube', id: input };
+  if ((platform === 'twitch' || platform === 'kick') && /^[a-zA-Z0-9_]{1,25}$/.test(input))
+    return { platform, id: input.toLowerCase() };
+  return null;
+}
+
+// ── Hash routing ──────────────────────────────────────────────────────────────
+const PLATFORM_CODE = { youtube: 'yt', twitch: 'tw', kick: 'kick' };
+const CODE_PLATFORM = { yt: 'youtube', tw: 'twitch', kick: 'kick' };
+
+function encodeHash(list) {
+  return '#' + list.map(s => `${PLATFORM_CODE[s.platform]}:${s.id}`).join('/');
+}
+
+function decodeHash() {
+  const hash = decodeURIComponent(location.hash.slice(1));
+  if (!hash) return [];
+  return hash.split('/').map(part => {
+    const i = part.indexOf(':');
+    if (i === -1) return null;
+    const platform = CODE_PLATFORM[part.slice(0, i)];
+    const id = part.slice(i + 1);
+    return (platform && id) ? { platform, id } : null;
+  }).filter(Boolean);
+}
+
+function updateHash() {
+  history.replaceState(null, '', encodeHash(streams));
+}
+
+// ── Layout optimiser ──────────────────────────────────────────────────────────
+function optimizeSize() {
+  const n = streams.length;
+  if (n === 0) return;
+
+  const W = document.getElementById('wrapper').clientWidth;
+  const H = window.innerHeight;
+  const ratio = 16 / 9;
+
+  let bestW = 0, bestH = 0, bestPad = 0;
+  for (let perRow = 1; perRow <= n; perRow++) {
+    const rows = Math.ceil(n / perRow);
+    let w = Math.floor(W / perRow) - 4;
+    let h = Math.floor(H / rows) - 4;
+    if (w / ratio < h) { h = w / ratio; } else { w = h * ratio; }
+    if (w > bestW) {
+      bestW = w; bestH = h;
+      bestPad = (H - rows * (Math.floor(h) + 4)) / 2;
+    }
+  }
+
+  document.querySelectorAll('.stream').forEach(el => {
+    el.style.width  = Math.floor(bestW) + 'px';
+    el.style.height = Math.floor(bestH) + 'px';
+  });
+  document.getElementById('streams').style.paddingTop = Math.max(0, bestPad) + 'px';
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function render() {
+  const streamsEl = document.getElementById('streams');
+  const helpbox   = document.getElementById('helpbox');
+
+  streamsEl.innerHTML = '';
+
+  if (streams.length === 0) {
+    helpbox.style.display = 'block';
+    return;
+  }
+  helpbox.style.display = 'none';
+
+  streams.forEach(s => {
+    const wrap = document.createElement('div');
+    wrap.className = 'stream-wrap';
+
+    const badge = document.createElement('div');
+    badge.className = `platform-badge ${s.platform}`;
+
+    const iframe = document.createElement('iframe');
+    iframe.className = 'stream';
+    iframe.src = embedUrl(s);
+    iframe.setAttribute('allowfullscreen', '');
+    iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+
+    wrap.append(badge, iframe);
+    streamsEl.appendChild(wrap);
+  });
+
+  optimizeSize();
+}
+
+// ── Manage dialog ─────────────────────────────────────────────────────────────
+let dialogPlatform = 'twitch'; // default for new rows
+
+function makePlatformToggle() {
+  const group = document.createElement('div');
+  group.className = 'platform-toggle';
+  ['youtube','twitch','kick'].forEach(p => {
+    const btn = document.createElement('button');
+    btn.textContent = PLATFORMS[p].label;
+    btn.dataset.platform = p;
+    const shortClass = p === 'youtube' ? 'yt' : p === 'twitch' ? 'tw' : 'kick';
+    btn.className = shortClass;
+    if (p === dialogPlatform) btn.classList.add('active');
+    btn.onclick = () => {
+      dialogPlatform = p;
+      group.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      group.nextElementSibling && (group.nextElementSibling.placeholder = placeholderFor(p));
+    };
+    group.appendChild(btn);
+  });
+  return group;
+}
+
+function placeholderFor(p) {
+  if (p === 'youtube') return 'Video ID or youtube.com URL';
+  if (p === 'twitch')  return 'Channel name or twitch.tv URL';
+  return 'Channel name or kick.com URL';
+}
+
+function makeInputRow() {
+  const row = document.createElement('div');
+  row.className = 'new-stream-row';
+  const toggle = makePlatformToggle();
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'stream-input';
+  input.placeholder = placeholderFor(dialogPlatform);
+  input.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); addInputRow(); } };
+  // Auto-detect on paste
+  input.addEventListener('paste', e => {
+    setTimeout(() => {
+      const detected = detectFromUrl(input.value);
+      if (detected) {
+        // Sync platform toggle to detected platform
+        dialogPlatform = detected.platform;
+        toggle.querySelectorAll('button').forEach(b => {
+          b.classList.toggle('active', b.dataset.platform === detected.platform);
+        });
+        input.value = detected.id;
+        input.placeholder = placeholderFor(detected.platform);
+      }
+    }, 0);
+  });
+  row.append(toggle, input);
+  return row;
+}
+
+function addInputRow() {
+  const rows = document.getElementById('new-rows');
+  rows.appendChild(makeInputRow());
+  const inputs = rows.querySelectorAll('.stream-input');
+  if (inputs.length) inputs[inputs.length - 1].focus();
+}
+
+function populateDialog() {
+  const list = document.getElementById('streamlist');
+  const rows = document.getElementById('new-rows');
+  list.innerHTML = '';
+  rows.innerHTML = '';
+
+  streams.forEach(s => {
+    const item = document.createElement('div');
+    item.className = 'streamlist-item';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'check';
+    cb.checked = true;
+    const shortClass = s.platform === 'youtube' ? 'yt' : s.platform === 'twitch' ? 'tw' : 'kick';
+    const dot = document.createElement('div');
+    dot.className = `item-dot ${s.platform}`;
+    const lbl = document.createElement('span');
+    lbl.className = 'item-label';
+    lbl.textContent = `${PLATFORMS[s.platform].label}: ${s.id}`;
+    item.append(cb, dot, lbl);
+    list.appendChild(item);
+  });
+
+  rows.appendChild(makeInputRow());
+  setTimeout(() => {
+    const inputs = rows.querySelectorAll('.stream-input');
+    if (inputs.length) inputs[0].focus();
+  }, 50);
+}
+
+function openManage() {
+  document.getElementById('helpbox').style.display = 'none';
+  populateDialog();
+  document.getElementById('change_streams').style.display = 'block';
+  document.getElementById('overlay').classList.add('visible');
+}
+
+function closeManage(apply) {
+  if (apply) {
+    const newStreams = [];
+    const checks = document.querySelectorAll('#streamlist .check');
+    streams.forEach((s, i) => {
+      if (checks[i] && checks[i].checked) newStreams.push(s);
+    });
+    document.querySelectorAll('#new-rows .new-stream-row').forEach(row => {
+      const toggle = row.querySelector('.platform-toggle');
+      const activeBtn = toggle.querySelector('button.active');
+      const platform = activeBtn ? activeBtn.dataset.platform : dialogPlatform;
+      const input = row.querySelector('.stream-input');
+      const parsed = parseForPlatform(platform, input.value);
+      if (parsed && !newStreams.some(s => s.platform === parsed.platform && s.id === parsed.id))
+        newStreams.push(parsed);
+    });
+    streams = newStreams;
+    updateHash();
+    render();
+  }
+  document.getElementById('change_streams').style.display = 'none';
+  document.getElementById('overlay').classList.remove('visible');
+  if (streams.length === 0) document.getElementById('helpbox').style.display = 'block';
+}
+
+// ── Copy link ─────────────────────────────────────────────────────────────────
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+function copyLink() {
+  navigator.clipboard.writeText(location.href).then(
+    () => showToast('Link copied to clipboard'),
+    () => { prompt('Copy this link:', location.href); }
+  );
+}
+
+// ── Global paste shortcut ─────────────────────────────────────────────────────
+document.addEventListener('paste', e => {
+  if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+  const text = (e.clipboardData || window.clipboardData).getData('text');
+  const detected = detectFromUrl(text);
+  if (detected && !streams.some(s => s.platform === detected.platform && s.id === detected.id)) {
+    streams.push(detected);
+    updateHash();
+    render();
+    showToast(`Added ${PLATFORMS[detected.platform].label}: ${detected.id}`);
+  }
+});
+
+// ── Keyboard shortcuts ────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeManage(false);
+});
+
+// ── Resize ────────────────────────────────────────────────────────────────────
+window.addEventListener('resize', optimizeSize);
+
+// ── Hash navigation ───────────────────────────────────────────────────────────
+window.addEventListener('hashchange', () => { streams = decodeHash(); render(); });
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+streams = decodeHash();
+if (streams.length === 0) {
+  document.getElementById('helpbox').style.display = 'block';
+} else {
+  render();
+}
+</script>
+</body>
+</html>
