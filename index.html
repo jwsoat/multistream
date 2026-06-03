@@ -669,17 +669,17 @@ window.addEventListener('resize', optimizeSize);
 window.addEventListener('hashchange', () => { streams = decodeHash(); render(); });
 
 // ── Focus management ─────────────────────────────────────────────────────────
-window.addEventListener('blur', () => {
-  document.querySelectorAll('.stream').forEach(iframe => {
-    iframe.src = 'about:blank';
-  });
-});
-
-window.addEventListener('focus', () => {
-  const iframes = document.querySelectorAll('.stream');
-  streams.forEach((s, i) => {
-    if (iframes[i]) iframes[i].src = embedUrl(s);
-  });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    document.querySelectorAll('.stream').forEach(iframe => {
+      iframe.src = 'about:blank';
+    });
+  } else {
+    const iframes = document.querySelectorAll('.stream');
+    streams.forEach((s, i) => {
+      if (iframes[i]) iframes[i].src = embedUrl(s);
+    });
+  }
 });
 
 // ── Init ──────────────────────────────────────────────────────────────────────
