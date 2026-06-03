@@ -669,19 +669,16 @@ window.addEventListener('resize', optimizeSize);
 window.addEventListener('hashchange', () => { streams = decodeHash(); render(); });
 
 // ── Focus management ─────────────────────────────────────────────────────────
-const streamSrcCache = new Map(); // iframe -> original src
-
 window.addEventListener('blur', () => {
   document.querySelectorAll('.stream').forEach(iframe => {
-    streamSrcCache.set(iframe, iframe.src);
-    iframe.src = '';
+    iframe.src = 'about:blank';
   });
 });
 
 window.addEventListener('focus', () => {
-  document.querySelectorAll('.stream').forEach(iframe => {
-    const original = streamSrcCache.get(iframe);
-    if (original) iframe.src = original;
+  const iframes = document.querySelectorAll('.stream');
+  streams.forEach((s, i) => {
+    if (iframes[i]) iframes[i].src = embedUrl(s);
   });
 });
 
