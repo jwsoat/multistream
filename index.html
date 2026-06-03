@@ -365,7 +365,7 @@ function embedUrl(stream) {
     case 'youtube':
       return `https://www.youtube-nocookie.com/embed/${stream.id}?rel=0&modestbranding=1`;
     case 'twitch':
-      return `https://player.twitch.tv/?channel=${stream.id}&parent=${domain}&muted=false`;
+      return `https://player.twitch.tv/?channel=${stream.id}&parent=${domain}&muted=true&autoplay=true`;
     case 'kick':
       return `https://player.kick.com/${stream.id}`;
   }
